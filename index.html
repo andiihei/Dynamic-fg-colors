@@ -1,0 +1,1279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OKLCH Lightness Control — Chroma-Weighted Auto Polarity</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/inter@latest/latin-400-normal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/inter@latest/latin-600-normal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/jetbrains-mono@latest/latin-400-normal.css">
+<style>
+  :root {
+    font-family: 'Inter', system-ui, sans-serif;
+    color-scheme: dark;
+  }
+  
+  body {
+    font-family: 'Inter', sans-serif;
+    background: #0a0a0f;
+    color: #e5e5e5;
+    min-height: 100vh;
+  }
+  
+  code, .mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
+  
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 6px;
+    background: #27272a;
+    border-radius: 999px;
+    outline: none;
+    cursor: pointer;
+  }
+  
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    background: #fff;
+    border-radius: 50%;
+    box-shadow: 0 0 0 3px rgba(255,255,255,0.1), 0 2px 8px rgba(0,0,0,0.4);
+    cursor: grab;
+    transition: transform 0.15s;
+  }
+  
+  input[type="range"]::-webkit-slider-thumb:active {
+    cursor: grabbing;
+    transform: scale(1.15);
+  }
+  
+  input[type="range"]::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    background: #fff;
+    border: none;
+    border-radius: 50%;
+    box-shadow: 0 0 0 3px rgba(255,255,255,0.1), 0 2px 8px rgba(0,0,0,0.4);
+    cursor: grab;
+  }
+  
+  .slider-lightness::-webkit-slider-runnable-track {
+    background: linear-gradient(to right, #000, #fff);
+    border-radius: 999px;
+  }
+  
+  .slider-hue::-webkit-slider-runnable-track {
+    background: linear-gradient(to right, 
+      oklch(0.7 0.15 0), oklch(0.7 0.15 60), oklch(0.7 0.15 120),
+      oklch(0.7 0.15 180), oklch(0.7 0.15 240), oklch(0.7 0.15 300), oklch(0.7 0.15 360));
+    border-radius: 999px;
+  }
+  
+  .slider-chroma::-webkit-slider-runnable-track {
+    background: linear-gradient(to right, oklch(0.7 0 0), var(--chroma-end, oklch(0.7 0.2 250)));
+    border-radius: 999px;
+  }
+  
+  .slider-fg-chroma::-webkit-slider-runnable-track {
+    background: linear-gradient(to right, 
+      var(--fg-chroma-start, oklch(0.3 0 0)), 
+      var(--fg-chroma-end, oklch(0.3 0.2 250)));
+    border-radius: 999px;
+  }
+  
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  
+  .badge-supported {
+    background: rgba(34, 197, 94, 0.15);
+    color: #4ade80;
+    border: 1px solid rgba(34, 197, 94, 0.3);
+  }
+  
+  .badge-unsupported {
+    background: rgba(239, 68, 68, 0.15);
+    color: #f87171;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+  }
+  
+  .badge-fallback {
+    background: rgba(234, 179, 8, 0.15);
+    color: #facc15;
+    border: 1px solid rgba(234, 179, 8, 0.3);
+  }
+  
+  .badge-info {
+    background: rgba(96, 165, 250, 0.15);
+    color: #60a5fa;
+    border: 1px solid rgba(96, 165, 250, 0.3);
+  }
+  
+  .preview-card {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: 16px;
+    padding: 1.5rem;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  
+  .preview-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 30% 20%, rgba(255,255,255,0.08), transparent 50%);
+    pointer-events: none;
+  }
+  
+  .code-block {
+    background: #0f0f14;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    font-size: 12.5px;
+    line-height: 1.6;
+    overflow-x: auto;
+  }
+  
+  .code-block .kw { color: #c084fc; }
+  .code-block .fn { color: #60a5fa; }
+  .code-block .str { color: #fbbf24; }
+  .code-block .num { color: #34d399; }
+  .code-block .prop { color: #f472b6; }
+  .code-block .cmt { color: #52525b; font-style: italic; }
+  
+  .contrast-meter {
+    height: 6px;
+    background: #27272a;
+    border-radius: 999px;
+    overflow: hidden;
+    position: relative;
+  }
+  
+  .contrast-fill {
+    height: 100%;
+    border-radius: 999px;
+    transition: width 0.3s, background 0.3s;
+  }
+  
+  .threshold-marker {
+    position: absolute;
+    top: -3px;
+    bottom: -3px;
+    width: 2px;
+    background: rgba(255,255,255,0.4);
+    border-radius: 1px;
+  }
+  
+  .control-group {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 12px;
+    padding: 1.25rem;
+  }
+  
+  .control-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.6rem;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #a1a1aa;
+    font-weight: 600;
+  }
+  
+  .control-value {
+    font-family: 'JetBrains Mono', monospace;
+    color: #e4e4e7;
+    font-size: 12px;
+    font-weight: 400;
+  }
+  
+  .tab {
+    padding: 8px 14px;
+    font-size: 13px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: #71717a;
+    font-weight: 500;
+  }
+  
+  .tab.active {
+    background: rgba(255,255,255,0.08);
+    color: #fff;
+  }
+  
+  .tab:hover:not(.active) {
+    color: #d4d4d8;
+  }
+  
+  .level-btn {
+    flex: 1;
+    padding: 10px 8px;
+    font-size: 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: #71717a;
+    font-weight: 500;
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.08);
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  
+  .level-btn.active {
+    background: rgba(255,255,255,0.1);
+    color: #fff;
+    border-color: rgba(255,255,255,0.2);
+  }
+  
+  .level-btn:hover:not(.active) {
+    color: #d4d4d8;
+    background: rgba(255,255,255,0.04);
+  }
+  
+  .level-badge {
+    font-size: 9px;
+    opacity: 0.7;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+  }
+  
+  .polarity-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 8px;
+    font-size: 11px;
+    color: #a1a1aa;
+  }
+  
+  .polarity-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #60a5fa;
+  }
+  
+  .polarity-dot.reverse { background: #f472b6; }
+  
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+  
+  .pulse-dot {
+    animation: pulse-dot 2s ease-in-out infinite;
+  }
+  
+  .contrast-section {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 10px;
+    padding: 1rem;
+    flex: 1;
+  }
+  
+  .contrast-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+  }
+  
+  .contrast-section-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #a1a1aa;
+  }
+  
+  .wcag-level {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 6px;
+    font-size: 11px;
+  }
+  
+  .wcag-level-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+  }
+  
+  .wcag-level-dot.pass { background: #4ade80; }
+  .wcag-level-dot.fail { background: #f87171; }
+  
+  .size-btn {
+    flex: 1;
+    padding: 8px 10px;
+    font-size: 11px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: #71717a;
+    font-weight: 500;
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.08);
+    text-align: center;
+  }
+  
+  .size-btn.active {
+    background: rgba(255,255,255,0.1);
+    color: #fff;
+    border-color: rgba(255,255,255,0.2);
+  }
+  
+  .size-btn:hover:not(.active) {
+    color: #d4d4d8;
+    background: rgba(255,255,255,0.04);
+  }
+  
+  .effective-shift-display {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-top: 12px;
+    font-size: 11px;
+  }
+  
+  .effective-shift-display .label {
+    color: #a1a1aa;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 4px;
+  }
+  
+  .effective-shift-display .value {
+    font-family: 'JetBrains Mono', monospace;
+    color: #e4e4e7;
+    font-size: 13px;
+  }
+  
+  .effective-shift-display .formula {
+    font-family: 'JetBrains Mono', monospace;
+    color: #71717a;
+    font-size: 10px;
+    margin-top: 4px;
+  }
+  
+  .hue-link-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: rgba(96, 165, 250, 0.08);
+    border: 1px solid rgba(96, 165, 250, 0.2);
+    border-radius: 8px;
+    font-size: 11px;
+    color: #93c5fd;
+  }
+  
+  .hue-link-indicator svg {
+    flex-shrink: 0;
+  }
+  
+  .polarity-rule-display {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-top: 12px;
+    font-size: 11px;
+  }
+  
+  .polarity-rule-display .label {
+    color: #a1a1aa;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 6px;
+  }
+  
+  .polarity-rule-display .rule {
+    font-family: 'JetBrains Mono', monospace;
+    color: #a1a1aa;
+    font-size: 10px;
+    line-height: 1.6;
+  }
+  
+  .polarity-rule-display .rule .highlight {
+    color: #e4e4e7;
+  }
+  
+  .polarity-rule-display .rule .pass {
+    color: #4ade80;
+  }
+  
+  .polarity-rule-display .rule .fail {
+    color: #f87171;
+  }
+  
+  .copy-btn {
+    margin-top: 0.75rem;
+    padding: 8px 16px;
+    font-size: 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: #a1a1aa;
+    font-weight: 500;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .copy-btn:hover {
+    background: rgba(255,255,255,0.1);
+    color: #fff;
+  }
+  
+  .copy-btn.copied {
+    background: rgba(34, 197, 94, 0.15);
+    color: #4ade80;
+    border-color: rgba(34, 197, 94, 0.3);
+  }
+</style>
+</head>
+<body class="p-6 md:p-10">
+
+<div class="max-w-7xl mx-auto">
+  
+  <header class="mb-8">
+    <div class="flex flex-wrap items-center gap-3 mb-3">
+      <h1 class="text-3xl md:text-4xl font-semibold tracking-tight">
+        OKLCH Lightness Control — Chroma-Weighted
+      </h1>
+      <span id="supportBadge" class="badge badge-unsupported">
+        <span class="pulse-dot">●</span>
+        <span id="supportText">Checking…</span>
+      </span>
+    </div>
+    <p class="text-zinc-400 text-sm md:text-base max-w-3xl leading-relaxed">
+      Nuanced polarity: <strong>high-chroma bright backgrounds → dark text</strong>, 
+      otherwise <strong>light text</strong>. Chroma weights the lightness shift, 
+      and High contrast adds a chroma boost of +0.125–0.2.
+    </p>
+  </header>
+  
+  <!-- Row 1: Background + Text Modifier + Preview (same height) -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+    
+    <!-- Background Color -->
+    <div class="control-group">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-sm font-semibold text-white tracking-wide">Background</h2>
+        <div id="bgSwatch" class="w-8 h-8 rounded-md border border-white/10"></div>
+      </div>
+      
+      <div class="space-y-4">
+        <div>
+          <div class="control-label">
+            <span>Lightness (L)</span>
+            <span class="control-value" id="bgL-val">0.70</span>
+          </div>
+          <input type="range" class="slider-lightness" id="bgL" min="0" max="1" step="0.01" value="0.70">
+        </div>
+        
+        <div>
+          <div class="control-label">
+            <span>Chroma (C)</span>
+            <span class="control-value" id="bgC-val">0.150</span>
+          </div>
+          <input type="range" class="slider-chroma" id="bgC" min="0" max="0.37" step="0.005" value="0.15">
+        </div>
+        
+        <div>
+          <div class="control-label">
+            <span>Hue (H)</span>
+            <span class="control-value" id="bgH-val">250°</span>
+          </div>
+          <input type="range" class="slider-hue" id="bgH" min="0" max="360" step="1" value="250">
+        </div>
+      </div>
+    </div>
+    
+    <!-- Text Modifier -->
+    <div class="control-group">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-sm font-semibold text-white tracking-wide">Text Modifier</h2>
+        <div id="fgSwatch" class="w-8 h-8 rounded-md border border-white/10"></div>
+      </div>
+      
+      <div class="hue-link-indicator mb-4">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <path d="M6.5 9.5L9.5 6.5M9.5 6.5C10.3284 5.67157 10.3284 4.32843 9.5 3.5C8.67157 2.67157 7.32843 2.67157 6.5 3.5L4 6M6.5 12.5L4 10M6.5 12.5C7.32843 13.3284 8.67157 13.3284 9.5 12.5C10.3284 11.6716 10.3284 10.3284 9.5 9.5L6.5 12.5Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>Text hue locked to background (<span id="linkedHueVal">250°</span>)</span>
+      </div>
+      
+      <div class="space-y-4">
+        <div id="fgChromaControl">
+          <div class="control-label">
+            <span>Text Chroma</span>
+            <span class="control-value" id="fgC-val">0.000</span>
+          </div>
+          <input type="range" class="slider-fg-chroma" id="fgC" min="0" max="0.25" step="0.005" value="0">
+          <div class="flex justify-between text-[10px] text-zinc-500 mt-1 mono">
+            <span>Neutral</span>
+            <span>Subtle</span>
+            <span>Vivid</span>
+          </div>
+        </div>
+        
+        <div id="fgChromaAuto" class="hidden">
+          <div class="control-label">
+            <span>Text Chroma (auto for High)</span>
+            <span class="control-value" id="fgC-auto-val">0.162</span>
+          </div>
+          <div class="polarity-rule-display" style="margin-top: 0;">
+            <div class="rule">
+              <span class="highlight">High contrast</span> auto-sets chroma to <span class="pass">+0.125–0.200</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="polarity-rule-display">
+        <div class="label">Polarity Rules</div>
+        <div class="rule">
+          if <span class="highlight">C &gt; 0.15</span> and <span class="highlight">L ≥ 0.75</span> → <span class="fail">dark text</span><br>
+          otherwise → <span class="pass">light text</span>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Preview -->
+    <div id="heroCard" class="preview-card shadow-2xl">
+      <div class="relative z-10">
+        <div class="text-xs uppercase tracking-widest opacity-60 mb-2">Preview</div>
+        <h2 class="text-2xl font-semibold mb-2 leading-tight">
+          The quick brown fox jumps over the lazy dog
+        </h2>
+        <p class="text-sm opacity-85 leading-relaxed mb-3">
+          <span id="autoPolarityDesc">Light text on this background</span>.
+        </p>
+        <div class="flex flex-wrap items-center gap-3">
+          <span class="px-3 py-1.5 rounded-lg text-xs opacity-70 mono">
+            oklch(<span id="fgDisplay">—</span>)
+          </span>
+        </div>
+      </div>
+    </div>
+    
+  </div>
+  
+  <!-- Row 2: Contrast Level + Contrast Analysis (same height) -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+    
+    <!-- Contrast Level -->
+    <div class="control-group">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-sm font-semibold text-white tracking-wide">Contrast Level</h2>
+        <span id="levelBadge" class="badge badge-info text-[10px]">Medium</span>
+      </div>
+      
+      <div class="flex gap-2">
+        <button class="level-btn" data-level="0.55" data-name="High" data-chroma-boost="true">
+          <span class="font-medium">High</span>
+          <span class="level-badge">ΔL = 0.55 · ΔC = +0.162</span>
+        </button>
+        <button class="level-btn active" data-level="0.35" data-name="Medium" data-chroma-boost="false">
+          <span class="font-medium">Medium</span>
+          <span class="level-badge">base ΔL = 0.35</span>
+        </button>
+        <button class="level-btn" data-level="0.15" data-name="Low" data-chroma-boost="false">
+          <span class="font-medium">Low</span>
+          <span class="level-badge">base ΔL = 0.15</span>
+        </button>
+      </div>
+      
+      <div class="effective-shift-display">
+        <div class="label">Effective Shift (chroma-weighted)</div>
+        <div class="value" id="effectiveShiftValue">±0.403</div>
+        <div class="formula" id="effectiveShiftFormula">0.35 × (1 + 1.0 × 0.150) = 0.403</div>
+      </div>
+      
+      <div class="mt-4 pt-3 border-t border-white/5">
+        <div class="polarity-indicator">
+          <div class="polarity-dot" id="polarityDot"></div>
+          <span id="polarityText">Auto polarity based on background lightness</span>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Contrast Analysis (horizontal layout) -->
+    <div class="control-group">
+      <h2 class="text-sm font-semibold text-white tracking-wide mb-4">Contrast Analysis</h2>
+      
+      <div class="flex gap-4">
+        
+        <!-- APCA Section -->
+        <div class="contrast-section">
+          <div class="contrast-section-header">
+            <span class="contrast-section-title">APCA (WCAG 3.0)</span>
+            <span id="apcaBadge" class="badge badge-unsupported text-[10px]">—</span>
+          </div>
+          
+          <div class="flex items-baseline gap-2 mb-3">
+            <span class="text-2xl font-semibold mono" id="apcaLc">—</span>
+            <span class="text-xs text-zinc-500">Lc</span>
+          </div>
+          
+          <div class="contrast-meter" style="position: relative;">
+            <div class="contrast-fill" id="contrastFill" style="width: 0%"></div>
+            <div class="threshold-marker" id="thresholdMarker" style="left: 0%"></div>
+          </div>
+          
+          <div class="flex justify-between text-[10px] text-zinc-500 mt-2 mono">
+            <span>0</span>
+            <span>45</span>
+            <span>60</span>
+            <span>75</span>
+            <span>90</span>
+            <span>106</span>
+          </div>
+          
+          <div class="mt-3 pt-3 border-t border-white/5">
+            <div class="control-label mb-2">
+              <span>Text Size</span>
+              <span class="control-value text-[10px]">threshold: <span id="thresholdVal">60</span> Lc</span>
+            </div>
+            <div class="flex gap-2">
+              <button class="size-btn" data-size="body" data-threshold="75">
+                <div class="text-[10px] opacity-60">Body</div>
+                <div>&lt;18px</div>
+              </button>
+              <button class="size-btn active" data-size="medium" data-threshold="60">
+                <div class="text-[10px] opacity-60">Medium</div>
+                <div>18–24px</div>
+              </button>
+              <button class="size-btn" data-size="large" data-threshold="45">
+                <div class="text-[10px] opacity-60">Large</div>
+                <div>&gt;24px</div>
+              </button>
+              <button class="size-btn" data-size="fluent" data-threshold="90">
+                <div class="text-[10px] opacity-60">Fluent</div>
+                <div>Body+</div>
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        <!-- WCAG Section -->
+        <div class="contrast-section">
+          <div class="contrast-section-header">
+            <span class="contrast-section-title">WCAG 2.x</span>
+            <span id="wcagBadge" class="badge badge-unsupported text-[10px]">—</span>
+          </div>
+          
+          <div class="flex items-baseline gap-2 mb-3">
+            <span class="text-2xl font-semibold mono" id="wcagRatio">—</span>
+            <span class="text-xs text-zinc-500">:1</span>
+          </div>
+          
+          <div class="contrast-meter" style="position: relative;">
+            <div class="contrast-fill" id="wcagFill" style="width: 0%"></div>
+            <div class="threshold-marker" style="left: 21.4%"></div>
+            <div class="threshold-marker" style="left: 33.3%"></div>
+          </div>
+          
+          <div class="flex justify-between text-[10px] text-zinc-500 mt-2 mono">
+            <span>1:1</span>
+            <span>AA 4.5</span>
+            <span>AAA 7</span>
+            <span>21:1</span>
+          </div>
+          
+          <div class="mt-3 pt-3 border-t border-white/5 space-y-2">
+            <div class="wcag-level">
+              <div class="wcag-level-dot" id="wcagAADot"></div>
+              <span class="text-zinc-400">AA Normal</span>
+              <span class="ml-auto mono text-xs" id="wcagAAStatus">—</span>
+            </div>
+            <div class="wcag-level">
+              <div class="wcag-level-dot" id="wcagAALargeDot"></div>
+              <span class="text-zinc-400">AA Large</span>
+              <span class="ml-auto mono text-xs" id="wcagAALargeStatus">—</span>
+            </div>
+            <div class="wcag-level">
+              <div class="wcag-level-dot" id="wcagAAADot"></div>
+              <span class="text-zinc-400">AAA Normal</span>
+              <span class="ml-auto mono text-xs" id="wcagAAAStatus">—</span>
+            </div>
+          </div>
+        </div>
+        
+      </div>
+    </div>
+    
+  </div>
+  
+  <!-- Row 3: Code Display -->
+  <div>
+    <div class="flex items-center gap-2 mb-3">
+      <div class="flex gap-1 bg-white/5 p-1 rounded-lg">
+        <button class="tab active" data-tab="css">CSS</button>
+        <button class="tab" data-tab="values">Computed</button>
+        <button class="tab" data-tab="contrast">Contrast Details</button>
+      </div>
+    </div>
+    
+    <div id="tab-css" class="code-block mono">
+<span class="cmt">/* Nuanced polarity + chroma-weighted shift */</span>
+<span class="cmt">/* High contrast adds chroma boost (+0.162) */</span>
+
+<span class="kw">@function</span> <span class="fn">--auto-lightness</span>(
+  <span class="str">--bg</span> &lt;color&gt;,
+  <span class="str">--level</span> &lt;number&gt;,
+  <span class="str">--fg-c</span> &lt;number&gt;
+) <span class="kw">returns</span> &lt;color&gt; {
+  <span class="cmt">/* effectiveShift = level × (1 + bgChroma) */</span>
+  <span class="cmt">/* Polarity: if C &gt; 0.15 AND L ≥ 0.75 → dark text */</span>
+  
+  <span class="prop">result</span>: <span class="fn">if</span>(
+    <span class="fn">c</span>(<span class="kw">from</span> <span class="fn">var</span>(<span class="str">--bg</span>)) &gt; 0.15
+    <span class="kw">and</span> <span class="fn">l</span>(<span class="kw">from</span> <span class="fn">var</span>(<span class="str">--bg</span>)) &gt;= 0.75:
+      <span class="fn">oklch</span>(
+        <span class="kw">from</span> <span class="fn">var</span>(<span class="str">--bg</span>)
+        <span class="fn">calc</span>(l - <span class="fn">var</span>(<span class="str">--level</span>) * (1 + c))
+        <span class="fn">var</span>(<span class="str">--fg-c</span>)
+        h
+      );
+    <span class="kw">else</span>:
+      <span class="fn">oklch</span>(
+        <span class="kw">from</span> <span class="fn">var</span>(<span class="str">--bg</span>)
+        <span class="fn">calc</span>(l + <span class="fn">var</span>(<span class="str">--level</span>) * (1 + c))
+        <span class="fn">var</span>(<span class="str">--fg-c</span>)
+        h
+      )
+  );
+}
+
+<span class="cmt">/* Usage */</span>
+.<span class="prop">card</span> {
+  <span class="prop">--bg</span>: <span class="fn">oklch</span>(<span class="num" id="code-bg">0.700 0.150 250</span>);
+  <span class="prop">background</span>: <span class="fn">var</span>(<span class="str">--bg</span>);
+  <span class="prop">color</span>: <span class="fn">--auto-lightness</span>(
+    <span class="fn">var</span>(<span class="str">--bg</span>),
+    <span class="num" id="code-level">0.35</span>,
+    <span class="num" id="code-fgc">0.000</span>
+  );
+}
+    </div>
+    
+    <button class="copy-btn" id="copyBtn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+      </svg>
+      <span id="copyText">Copy CSS</span>
+    </button>
+    
+    <div id="tab-values" class="code-block mono hidden">
+<span class="cmt">/* Computed values */</span>
+<span class="prop">Background</span>: <span class="fn">oklch</span>(<span class="num" id="val-bg">—</span>)
+<span class="prop">Foreground</span>: <span class="fn">oklch</span>(<span class="num" id="val-fg">—</span>)
+<span class="prop">sRGB hex</span>:   <span class="num" id="val-hex">—</span>
+<span class="prop">Base shift</span>: <span class="num" id="val-base-shift">—</span>
+<span class="prop">Eff. shift</span>: <span class="num" id="val-eff-shift">—</span>
+<span class="prop">Text chroma</span>:<span class="num" id="val-fg-chroma">—</span>
+<span class="prop">Text hue</span>:   <span class="num" id="val-fg-hue">—</span>
+<span class="prop">APCA Lc</span>:    <span class="num" id="val-apca">—</span>
+<span class="prop">WCAG Ratio</span>: <span class="num" id="val-wcag">—</span>
+    </div>
+    
+    <div id="tab-contrast" class="code-block mono hidden">
+<span class="cmt">/* Detailed contrast analysis */</span>
+<span class="prop">Polarity</span>:     <span class="num" id="contrast-line1">—</span>
+<span class="prop">Ybg (linear)</span>: <span class="num" id="contrast-line2">—</span>
+<span class="prop">Ytxt (linear)</span>:<span class="num" id="contrast-line3">—</span>
+<span class="prop">SAPC raw</span>:     <span class="num" id="contrast-line4">—</span>
+<span class="prop">APCA Lc</span>:      <span class="num" id="contrast-line5">—</span>
+<span class="prop">WCAG Ratio</span>:   <span class="num" id="contrast-line6">—</span>
+<span class="prop">Verdict</span>:      <span class="num" id="contrast-line7">—</span>
+    </div>
+  </div>
+  
+</div>
+
+<script>
+// ============ OKLCH ↔ sRGB ============
+function oklchToSrgb(L, C, H) {
+  const hRad = H * Math.PI / 180;
+  const a = C * Math.cos(hRad);
+  const b = C * Math.sin(hRad);
+  
+  const l_ = L + 0.3963377774 * a + 0.2158037573 * b;
+  const m_ = L - 0.1055613458 * a - 0.0638541728 * b;
+  const s_ = L - 0.0894841775 * a - 1.2914855480 * b;
+  
+  const l = l_ * l_ * l_;
+  const m = m_ * m_ * m_;
+  const s = s_ * s_ * s_;
+  
+  let r = +4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s;
+  let g = -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s;
+  let bl = -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s;
+  
+  const toSrgb = x => x <= 0.0031308 ? 12.92 * x : 1.055 * Math.pow(x, 1/2.4) - 0.055;
+  r = toSrgb(r); g = toSrgb(g); bl = toSrgb(bl);
+  
+  return [
+    Math.max(0, Math.min(1, r)),
+    Math.max(0, Math.min(1, g)),
+    Math.max(0, Math.min(1, bl))
+  ];
+}
+
+function srgbToHex(r, g, b) {
+  const toHex = x => Math.round(x * 255).toString(16).padStart(2, '0');
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+
+// ============ WCAG 2.x Contrast Ratio ============
+function relativeLuminance(r, g, b) {
+  const toLinear = x => x <= 0.04045 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4);
+  return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
+}
+
+function contrastRatio(l1, l2) {
+  const [lighter, darker] = l1 > l2 ? [l1, l2] : [l2, l1];
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+// ============ APCA (SAPC) Implementation ============
+const APCA = {
+  mainR: 0.2126729,
+  mainG: 0.7151522,
+  mainB: 0.0721750,
+  
+  normBgClip: 0.022,
+  normTxtClip: 0.022,
+  revBgClip: 0.022,
+  revTxtClip: 0.022,
+  
+  scaleBoW: 1.14,
+  scaleWoB: 1.14,
+  
+  offsetBoW: 0.027,
+  offsetWoB: 0.027,
+  
+  normBgExp: 0.56,
+  normTxtExp: 0.57,
+  
+  revBgExp: 0.65,
+  revTxtExp: 0.62,
+  
+  sRGBtoY(r, g, b) {
+    const toLinear = x => Math.pow(x, 2.4);
+    return this.mainR * toLinear(r) + this.mainG * toLinear(g) + this.mainB * toLinear(b);
+  },
+  
+  softClip(Y, clipValue) {
+    if (Y > clipValue) return Y;
+    return Y + Math.pow(clipValue - Y, 1.414);
+  },
+  
+  contrastRgb(bgRgb, txtRgb) {
+    const [bgR, bgG, bgB] = bgRgb;
+    const [txtR, txtG, txtB] = txtRgb;
+    
+    const bgY = this.sRGBtoY(bgR, bgG, bgB);
+    const txtY = this.sRGBtoY(txtR, txtG, txtB);
+    
+    let SAPC, polarity;
+    
+    if (bgY > txtY) {
+      polarity = 'normal';
+      const bgSoft = this.softClip(bgY, this.normBgClip);
+      const txtSoft = this.softClip(txtY, this.normTxtClip);
+      
+      const bgExp = Math.pow(bgSoft, this.normBgExp);
+      const txtExp = Math.pow(txtSoft, this.normTxtExp);
+      
+      SAPC = (bgExp - txtExp) * this.scaleBoW;
+      
+      if (Math.abs(SAPC) < 0.1) return { Lc: 0, polarity, bgY, txtY, raw: SAPC };
+      SAPC = (SAPC - this.offsetBoW) * 100;
+    } else {
+      polarity = 'reverse';
+      const bgSoft = this.softClip(bgY, this.revBgClip);
+      const txtSoft = this.softClip(txtY, this.revTxtClip);
+      
+      const bgExp = Math.pow(bgSoft, this.revBgExp);
+      const txtExp = Math.pow(txtSoft, this.revTxtExp);
+      
+      SAPC = (bgExp - txtExp) * this.scaleWoB;
+      
+      if (Math.abs(SAPC) < 0.1) return { Lc: 0, polarity, bgY, txtY, raw: SAPC };
+      SAPC = (SAPC + this.offsetWoB) * 100;
+    }
+    
+    return { Lc: SAPC, polarity, bgY, txtY, raw: SAPC };
+  }
+};
+
+// ============ Chroma-weighted shift formula ============
+const K = 1.0;
+const HIGH_CHROMA_BOOST = 0.1625;
+
+function effectiveShift(baseShift, chroma) {
+  return baseShift * (1 + K * chroma);
+}
+
+// ============ DOM refs ============
+const bgL = document.getElementById('bgL');
+const bgC = document.getElementById('bgC');
+const bgH = document.getElementById('bgH');
+const fgC = document.getElementById('fgC');
+
+const bgLSpan = document.getElementById('bgL-val');
+const bgCSpan = document.getElementById('bgC-val');
+const bgHSpan = document.getElementById('bgH-val');
+const fgCSpan = document.getElementById('fgC-val');
+const fgCAutoVal = document.getElementById('fgC-auto-val');
+
+const bgSwatch = document.getElementById('bgSwatch');
+const fgSwatch = document.getElementById('fgSwatch');
+const heroCard = document.getElementById('heroCard');
+const autoPolarityDesc = document.getElementById('autoPolarityDesc');
+const linkedHueVal = document.getElementById('linkedHueVal');
+
+const fgChromaControl = document.getElementById('fgChromaControl');
+const fgChromaAuto = document.getElementById('fgChromaAuto');
+
+const apcaLcEl = document.getElementById('apcaLc');
+const apcaBadge = document.getElementById('apcaBadge');
+const contrastFill = document.getElementById('contrastFill');
+const thresholdMarker = document.getElementById('thresholdMarker');
+const polarityDot = document.getElementById('polarityDot');
+const polarityText = document.getElementById('polarityText');
+const thresholdVal = document.getElementById('thresholdVal');
+
+const wcagRatioEl = document.getElementById('wcagRatio');
+const wcagBadge = document.getElementById('wcagBadge');
+const wcagFill = document.getElementById('wcagFill');
+const wcagAADot = document.getElementById('wcagAADot');
+const wcagAALargeDot = document.getElementById('wcagAALargeDot');
+const wcagAAADot = document.getElementById('wcagAAADot');
+const wcagAAStatus = document.getElementById('wcagAAStatus');
+const wcagAALargeStatus = document.getElementById('wcagAALargeStatus');
+const wcagAAAStatus = document.getElementById('wcagAAAStatus');
+
+const levelBadge = document.getElementById('levelBadge');
+const effectiveShiftValue = document.getElementById('effectiveShiftValue');
+const effectiveShiftFormula = document.getElementById('effectiveShiftFormula');
+
+const fgDisplay = document.getElementById('fgDisplay');
+const codeBg = document.getElementById('code-bg');
+const codeLevel = document.getElementById('code-level');
+const codeFgc = document.getElementById('code-fgc');
+const valBg = document.getElementById('val-bg');
+const valFg = document.getElementById('val-fg');
+const valHex = document.getElementById('val-hex');
+const valBaseShift = document.getElementById('val-base-shift');
+const valEffShift = document.getElementById('val-eff-shift');
+const valFgChroma = document.getElementById('val-fg-chroma');
+const valFgHue = document.getElementById('val-fg-hue');
+const valApca = document.getElementById('val-apca');
+const valWcag = document.getElementById('val-wcag');
+
+const contrastLine1 = document.getElementById('contrast-line1');
+const contrastLine2 = document.getElementById('contrast-line2');
+const contrastLine3 = document.getElementById('contrast-line3');
+const contrastLine4 = document.getElementById('contrast-line4');
+const contrastLine5 = document.getElementById('contrast-line5');
+const contrastLine6 = document.getElementById('contrast-line6');
+const contrastLine7 = document.getElementById('contrast-line7');
+
+const supportBadge = document.getElementById('supportBadge');
+const supportText = document.getElementById('supportText');
+
+const copyBtn = document.getElementById('copyBtn');
+const copyText = document.getElementById('copyText');
+
+// ============ State ============
+let currentThreshold = 60;
+let currentLevel = 0.35;
+let isHighContrast = false;
+
+// ============ Detect @function support ============
+function detectFnSupport() {
+  try {
+    const testEl = document.createElement('div');
+    testEl.innerHTML = `<style>@function --test-fn(--c <color>) returns <color> { result: oklch(from var(--c) calc(l + 0.1) c h); }</style>`;
+    document.body.appendChild(testEl);
+    const sheet = Array.from(document.styleSheets).find(s => {
+      try { return s.cssRules && Array.from(s.cssRules).some(r => r.constructor.name === 'CSSFunctionRule'); }
+      catch(e) { return false; }
+    });
+    document.body.removeChild(testEl);
+    return !!sheet;
+  } catch(e) { return false; }
+}
+
+const supportsFn = detectFnSupport();
+if (supportsFn) {
+  supportBadge.className = 'badge badge-supported';
+  supportText.textContent = '@function supported';
+} else {
+  supportBadge.className = 'badge badge-fallback';
+  supportText.textContent = 'JS fallback active';
+}
+
+// ============ Update ============
+function update() {
+  const L = parseFloat(bgL.value);
+  const C = parseFloat(bgC.value);
+  const H = parseFloat(bgH.value);
+  
+  bgLSpan.textContent = L.toFixed(3);
+  bgCSpan.textContent = C.toFixed(3);
+  bgHSpan.textContent = `${Math.round(H)}°`;
+  linkedHueVal.textContent = `${Math.round(H)}°`;
+  
+  let fgChroma;
+  if (isHighContrast) {
+    fgChroma = HIGH_CHROMA_BOOST;
+    fgCAutoVal.textContent = fgChroma.toFixed(3);
+    fgChromaControl.classList.add('hidden');
+    fgChromaAuto.classList.remove('hidden');
+  } else {
+    fgChroma = parseFloat(fgC.value);
+    fgCSpan.textContent = fgChroma.toFixed(3);
+    fgChromaControl.classList.remove('hidden');
+    fgChromaAuto.classList.add('hidden');
+  }
+  
+  const effShift = effectiveShift(currentLevel, C);
+  
+  effectiveShiftValue.textContent = `±${effShift.toFixed(3)}`;
+  effectiveShiftFormula.textContent = `${currentLevel.toFixed(2)} × (1 + ${K.toFixed(1)} × ${C.toFixed(3)}) = ${effShift.toFixed(3)}`;
+  
+  const bgRgb = oklchToSrgb(L, C, H);
+  const bgHex = srgbToHex(...bgRgb);
+  const bgOkStr = `${L.toFixed(3)} ${C.toFixed(3)} ${Math.round(H)}`;
+  
+  bgSwatch.style.background = `oklch(${bgOkStr})`;
+  
+  let fgL, polarity;
+  const isDarkTextCase = (C > 0.15 && L >= 0.75);
+  
+  if (isDarkTextCase) {
+    fgL = Math.max(0, L - effShift);
+    polarity = 'normal';
+    autoPolarityDesc.textContent = 'Dark text (high chroma + bright bg)';
+  } else {
+    fgL = Math.min(1, L + effShift);
+    polarity = 'reverse';
+    autoPolarityDesc.textContent = 'Light text (low chroma or dark bg)';
+  }
+  
+  const fgRgb = oklchToSrgb(fgL, fgChroma, H);
+  const fgHex = srgbToHex(...fgRgb);
+  const fgOkStr = `${fgL.toFixed(3)} ${fgChroma.toFixed(3)} ${Math.round(H)}`;
+  
+  fgSwatch.style.background = `oklch(${fgOkStr})`;
+  
+  heroCard.style.background = `oklch(${bgOkStr})`;
+  heroCard.style.color = `oklch(${fgOkStr})`;
+  
+  if (polarity === 'normal') {
+    polarityDot.className = 'polarity-dot';
+    polarityText.textContent = 'Dark text on light background';
+  } else {
+    polarityDot.className = 'polarity-dot reverse';
+    polarityText.textContent = 'Light text on dark background';
+  }
+  
+  fgDisplay.textContent = fgOkStr;
+  codeBg.textContent = bgOkStr;
+  codeLevel.textContent = currentLevel.toFixed(2);
+  codeFgc.textContent = fgChroma.toFixed(3);
+  valBg.textContent = bgOkStr;
+  valFg.textContent = fgOkStr;
+  valHex.textContent = `bg ${bgHex} · fg ${fgHex}`;
+  valBaseShift.textContent = `±${currentLevel.toFixed(2)}`;
+  valEffShift.textContent = `±${effShift.toFixed(3)}`;
+  valFgChroma.textContent = fgChroma.toFixed(3) + (isHighContrast ? ' (auto)' : '');
+  valFgHue.textContent = `${Math.round(H)}° (linked to bg)`;
+  
+  const chromaEnd = `oklch(0.7 ${C.toFixed(3)} ${Math.round(H)})`;
+  document.querySelector('.slider-chroma').style.setProperty('--chroma-end', chromaEnd);
+  
+  const fgChromaStart = `oklch(${fgL.toFixed(3)} 0 ${Math.round(H)})`;
+  const fgChromaEnd = `oklch(${fgL.toFixed(3)} ${fgChroma.toFixed(3)} ${Math.round(H)})`;
+  const fgSlider = document.querySelector('.slider-fg-chroma');
+  fgSlider.style.setProperty('--fg-chroma-start', fgChromaStart);
+  fgSlider.style.setProperty('--fg-chroma-end', fgChromaEnd);
+  
+  const apca = APCA.contrastRgb(bgRgb, fgRgb);
+  const bgLum = relativeLuminance(...bgRgb);
+  const fgLum = relativeLuminance(...fgRgb);
+  const ratio = contrastRatio(bgLum, fgLum);
+  
+  const Lc = apca.Lc;
+  const absLc = Math.abs(Lc);
+  
+  apcaLcEl.textContent = (Lc >= 0 ? '+' : '') + Lc.toFixed(1);
+  valApca.textContent = `${Lc.toFixed(2)} Lc`;
+  
+  let apcaLevel = 'Fail';
+  let apcaCls = 'badge badge-unsupported';
+  if (absLc >= 90) { apcaLevel = 'Excellent'; apcaCls = 'badge badge-supported'; }
+  else if (absLc >= currentThreshold) { apcaLevel = 'Pass'; apcaCls = 'badge badge-supported'; }
+  else if (absLc >= currentThreshold * 0.7) { apcaLevel = 'Marginal'; apcaCls = 'badge badge-fallback'; }
+  
+  apcaBadge.className = apcaCls;
+  apcaBadge.textContent = apcaLevel;
+  
+  const maxLc = 106;
+  const apcaPct = Math.min(100, (absLc / maxLc) * 100);
+  contrastFill.style.width = `${apcaPct}%`;
+  
+  if (absLc >= 90) contrastFill.style.background = '#22c55e';
+  else if (absLc >= currentThreshold) contrastFill.style.background = '#4ade80';
+  else if (absLc >= currentThreshold * 0.7) contrastFill.style.background = '#facc15';
+  else contrastFill.style.background = '#f87171';
+  
+  const markerPct = (currentThreshold / maxLc) * 100;
+  thresholdMarker.style.left = `${markerPct}%`;
+  
+  wcagRatioEl.textContent = ratio.toFixed(2);
+  valWcag.textContent = `${ratio.toFixed(2)}:1`;
+  
+  let wcagLevel = 'Fail';
+  let wcagCls = 'badge badge-unsupported';
+  if (ratio >= 7) { wcagLevel = 'AAA'; wcagCls = 'badge badge-supported'; }
+  else if (ratio >= 4.5) { wcagLevel = 'AA'; wcagCls = 'badge badge-supported'; }
+  else if (ratio >= 3) { wcagLevel = 'AA Large'; wcagCls = 'badge badge-fallback'; }
+  
+  wcagBadge.className = wcagCls;
+  wcagBadge.textContent = wcagLevel;
+  
+  const maxRatio = 21;
+  const wcagPct = Math.min(100, (Math.log(ratio) / Math.log(maxRatio)) * 100);
+  wcagFill.style.width = `${wcagPct}%`;
+  
+  if (ratio >= 7) wcagFill.style.background = '#22c55e';
+  else if (ratio >= 4.5) wcagFill.style.background = '#4ade80';
+  else if (ratio >= 3) wcagFill.style.background = '#facc15';
+  else wcagFill.style.background = '#f87171';
+  
+  const aaPass = ratio >= 4.5;
+  const aaLargePass = ratio >= 3;
+  const aaaPass = ratio >= 7;
+  
+  wcagAADot.className = `wcag-level-dot ${aaPass ? 'pass' : 'fail'}`;
+  wcagAAStatus.textContent = aaPass ? 'Pass' : 'Fail';
+  wcagAAStatus.style.color = aaPass ? '#4ade80' : '#f87171';
+  
+  wcagAALargeDot.className = `wcag-level-dot ${aaLargePass ? 'pass' : 'fail'}`;
+  wcagAALargeStatus.textContent = aaLargePass ? 'Pass' : 'Fail';
+  wcagAALargeStatus.style.color = aaLargePass ? '#4ade80' : '#f87171';
+  
+  wcagAAADot.className = `wcag-level-dot ${aaaPass ? 'pass' : 'fail'}`;
+  wcagAAAStatus.textContent = aaaPass ? 'Pass' : 'Fail';
+  wcagAAAStatus.style.color = aaaPass ? '#4ade80' : '#f87171';
+  
+  contrastLine1.textContent = polarity;
+  contrastLine2.textContent = bgLum.toFixed(5);
+  contrastLine3.textContent = fgLum.toFixed(5);
+  contrastLine4.textContent = apca.raw.toFixed(5);
+  contrastLine5.textContent = `${Lc.toFixed(2)} Lc`;
+  contrastLine6.textContent = `${ratio.toFixed(3)}:1`;
+  contrastLine7.textContent = `APCA: ${apcaLevel} · WCAG: ${wcagLevel}`;
+  contrastLine7.style.color = (absLc >= currentThreshold && ratio >= 4.5) ? '#4ade80' : '#f87171';
+}
+
+// ============ Copy CSS ============
+copyBtn.addEventListener('click', () => {
+  const cssCode = document.getElementById('tab-css').innerText;
+  navigator.clipboard.writeText(cssCode).then(() => {
+    copyBtn.classList.add('copied');
+    copyText.textContent = 'Copied!';
+    setTimeout(() => {
+      copyBtn.classList.remove('copied');
+      copyText.textContent = 'Copy CSS';
+    }, 2000);
+  }).catch(err => {
+    console.error('Failed to copy:', err);
+  });
+});
+
+// ============ Event listeners ============
+[bgL, bgC, bgH, fgC].forEach(el => {
+  el.addEventListener('input', update);
+});
+
+document.querySelectorAll('.level-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.level-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentLevel = parseFloat(btn.dataset.level);
+    levelBadge.textContent = btn.dataset.name;
+    isHighContrast = btn.dataset.chromaBoost === 'true';
+    update();
+  });
+});
+
+document.querySelectorAll('.size-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.size-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentThreshold = parseInt(btn.dataset.threshold);
+    thresholdVal.textContent = currentThreshold;
+    update();
+  });
+});
+
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    const target = tab.dataset.tab;
+    document.getElementById('tab-css').classList.toggle('hidden', target !== 'css');
+    document.getElementById('tab-values').classList.toggle('hidden', target !== 'values');
+    document.getElementById('tab-contrast').classList.toggle('hidden', target !== 'contrast');
+  });
+});
+
+update();
+</script>
+
+</body>
+</html>
