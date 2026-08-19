@@ -1,10 +1,10 @@
 # OKLCH Lightness Control — A Technical Demo
 
-An interactive playground for exploring how CSS can (and can't) automatically adjust text color for perceptual contrast against dynamic backgrounds using the OKLCH color space.
+An [interactive playground](https://andiihei.github.io/Dynamic-fg-colors/) for exploring how CSS can (and can't) automatically adjust text color for perceptual contrast against dynamic backgrounds using the OKLCH color space.
 
 ## 🎯 Purpose
 
-This demo was born from a simple question:
+[This demo](https://andiihei.github.io/Dynamic-fg-colors/) was born from a simple question:
 
 Can we use modern CSS to build a text color that automatically adapts to any background — the way prefers-color-scheme does for light/dark mode, but for arbitrary colors?
 
