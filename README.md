@@ -106,9 +106,10 @@ No build step required. Just open `index.html` in a browser.
 ```bash
 # Or serve it locally if you prefer
 npx serve .
+```
 
 ## 📄 License
 
 MIT — do whatever you want with it. If you build something cool, I'd love to hear about it.
 
-Built as an exploration of CSS Color Level 5, CSS Custom Functions, and the ongoing evolution of web color.```
+Built as an exploration of CSS Color Level 5, CSS Custom Functions, and the ongoing evolution of web color.
